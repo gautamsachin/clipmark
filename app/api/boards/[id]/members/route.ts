@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 
 // Helper: Verify user has permission to view/edit members (is owner or is collaborator)
 async function verifyBoardAccess(supabase: any, boardId: string, userId: string, requireEdit = false) {
@@ -28,6 +29,20 @@ async function verifyBoardAccess(supabase: any, boardId: string, userId: string,
   return false
 }
 
+// Helper: Get query client (use admin client to bypass RLS for profiles if service role key is available)
+function getQueryClient(supabase: any) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const hasServiceRole = serviceRoleKey && serviceRoleKey !== 'paste_service_role_here' && serviceRoleKey.length > 20
+
+  if (hasServiceRole) {
+    return createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+  }
+  return supabase
+}
+
 // ── GET /api/boards/[id]/members ─────────────────────────────────────────────
 // Fetch all board members/collaborators
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -40,8 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const hasAccess = await verifyBoardAccess(supabase, boardId, user.id)
     if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+    const queryClient = getQueryClient(supabase)
+
     // Fetch members joined with profiles
-    const { data: members, error } = await supabase
+    const { data: members, error } = await queryClient
       .from('board_members')
       .select('id, role, created_at, profiles(id, email, full_name, avatar_url)')
       .eq('board_id', boardId)
@@ -49,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (error) throw error
 
     // Fetch board owner profile to display as owner in the list
-    const { data: board } = await supabase
+    const { data: board } = await queryClient
       .from('boards')
       .select('user_id, profiles(id, email, full_name, avatar_url)')
       .eq('id', boardId)
@@ -81,8 +98,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const email = body.email?.trim().toLowerCase()
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
 
-    // Find the profile for this email
-    const { data: profile, error: profileErr } = await supabase
+    const queryClient = getQueryClient(supabase)
+
+    // Find the profile for this email (admin client bypasses RLS on profiles)
+    const { data: profile, error: profileErr } = await queryClient
       .from('profiles')
       .select('id, email, full_name, avatar_url')
       .eq('email', email)

@@ -101,3 +101,7 @@ create policy "comments_delete" on public.board_item_comments for delete using (
     where bi.id = board_item_id and b.user_id = auth.uid()
   )
 );
+
+-- ── Profiles RLS policy update (for collaborator name & email display) ────────
+drop policy if exists "profiles_select" on public.profiles;
+create policy "profiles_select" on public.profiles for select using (auth.uid() is not null);

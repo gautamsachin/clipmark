@@ -11,12 +11,12 @@ export default function SyncTokenExposer() {
         const res = await fetch('/api/sync-token')
         if (res.ok) {
           const data = await res.json()
-          if (data.token) {
-            localStorage.setItem('clipmark_sync_token', data.token)
-          }
           // Also store profile so extension doesn't need a separate verify call
           if (data.profile) {
             localStorage.setItem('clipmark_user_profile', JSON.stringify(data.profile))
+          }
+          if (data.token) {
+            localStorage.setItem('clipmark_sync_token', data.token)
           }
         } else {
           // On error (e.g. 401), clear the tokens

@@ -59,8 +59,8 @@ create index bookmarks_search_idx on public.bookmarks using gin(public.bookmark_
 alter table public.profiles  enable row level security;
 alter table public.bookmarks enable row level security;
 
--- Profiles: users can only see/edit their own
-create policy "profiles_select" on public.profiles for select using (auth.uid() = id);
+-- Profiles: users can select any profile (crucial for collaborator display & search) but edit only their own
+create policy "profiles_select" on public.profiles for select using (auth.uid() is not null);
 create policy "profiles_update" on public.profiles for update using (auth.uid() = id);
 create policy "profiles_insert" on public.profiles for insert with check (auth.uid() = id);
 
