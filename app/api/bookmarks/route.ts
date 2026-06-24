@@ -128,16 +128,24 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ── DELETE /api/bookmarks — delete ALL bookmarks for the authenticated user ───
+// ── DELETE /api/bookmarks — delete ONE (by ?video_id=) or ALL bookmarks ───────
 export async function DELETE(req: NextRequest) {
   try {
     const { client, userId } = await getClientForAuth(req)
     if (!client || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { error } = await client
-      .from('bookmarks')
-      .delete()
-      .eq('user_id', userId)
+    const { searchParams } = new URL(req.url)
+    const videoId = searchParams.get('video_id')?.trim() || ''
+
+    let query = client.from('bookmarks').delete().eq('user_id', userId)
+
+    if (videoId) {
+      // Delete a single bookmark by video_id
+      query = query.eq('video_id', videoId)
+    }
+    // If no video_id, delete ALL bookmarks for the user (existing "clear all" behaviour)
+
+    const { error } = await query
 
     if (error) throw error
     return NextResponse.json({ success: true })
