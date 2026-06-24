@@ -65,6 +65,52 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [inviting, setInviting] = useState(false)
 
+  // Autocomplete and search states
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const ignoreSearchRef = useRef(false)
+
+  // Debounced search for users
+  useEffect(() => {
+    if (ignoreSearchRef.current) {
+      ignoreSearchRef.current = false
+      return
+    }
+
+    const query = inviteEmail.trim()
+    if (query.length < 2) {
+      setSearchResults([])
+      setShowDropdown(false)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`)
+        if (res.ok) {
+          const data = await res.json()
+          setSearchResults(data.users || [])
+          setShowDropdown(true)
+        }
+      } catch (err) {
+        console.error('Error searching users:', err)
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [inviteEmail])
+
+  const selectUser = (email: string) => {
+    ignoreSearchRef.current = true
+    setInviteEmail(email)
+    setSearchResults([])
+    setShowDropdown(false)
+  }
+
   // Arrow connection mode state
   const [arrowMode, setArrowMode] = useState<{
     step: 'idle' | 'select_source' | 'select_target'
@@ -1323,13 +1369,13 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
 
       {/* ── SHARE INVITE COLLABORATORS MODAL ──────────────────────────────────── */}
       {showInviteModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setShowInviteModal(false); setInviteError(''); setInviteSuccess(''); }}>
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setShowInviteModal(false); setInviteError(''); setInviteSuccess(''); setSearchResults([]); setShowDropdown(false); }}>
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-zinc-850 flex items-center justify-between bg-zinc-900/30">
               <span className="text-white font-bold text-sm flex items-center gap-2">
                 <Users className="w-4 h-4 text-violet-400" /> Collaborators & Members
               </span>
-              <button onClick={() => { setShowInviteModal(false); setInviteError(''); setInviteSuccess(''); }} className="text-zinc-500 hover:text-white p-1 hover:bg-zinc-900 rounded cursor-pointer">
+              <button onClick={() => { setShowInviteModal(false); setInviteError(''); setInviteSuccess(''); setSearchResults([]); setShowDropdown(false); }} className="text-zinc-500 hover:text-white p-1 hover:bg-zinc-900 rounded cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1337,23 +1383,63 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
             <div className="p-5 flex flex-col gap-4">
               {/* Form to invite */}
               {canModify && (
-                <form onSubmit={inviteMember} className="flex gap-2">
-                  <input
-                    type="email"
-                    required
-                    placeholder="Enter email to invite…"
-                    value={inviteEmail}
-                    onChange={e => setInviteEmail(e.target.value)}
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-white text-xs outline-none focus:border-violet-500 transition-all"
-                  />
-                  <button
-                    type="submit"
-                    disabled={inviting || !inviteEmail.trim()}
-                    className="bg-violet-600 hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-600/20 active:scale-95 disabled:opacity-50 px-4 py-2 text-white text-xs font-semibold rounded-xl transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" /> Invite
-                  </button>
-                </form>
+                <div className="relative">
+                  <form onSubmit={inviteMember} className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter name or email to invite…"
+                      value={inviteEmail}
+                      onChange={e => setInviteEmail(e.target.value)}
+                      className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-white text-xs outline-none focus:border-violet-500 transition-all"
+                    />
+                    <button
+                      type="submit"
+                      disabled={inviting || !inviteEmail.trim()}
+                      className="bg-violet-600 hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-600/20 active:scale-95 disabled:opacity-50 px-4 py-2 text-white text-xs font-semibold rounded-xl transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" /> Invite
+                    </button>
+                  </form>
+
+                  {/* Autocomplete Dropdown */}
+                  {showDropdown && searchResults.length > 0 && (
+                    <div className="absolute left-0 right-0 mt-1 bg-zinc-950 border border-zinc-800 rounded-xl shadow-xl z-55 max-h-48 overflow-y-auto flex flex-col divide-y divide-zinc-900">
+                      {searchResults.map(user => (
+                        <button
+                          key={user.id}
+                          type="button"
+                          onClick={() => selectUser(user.email)}
+                          className="flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-900/80 text-left transition-colors w-full cursor-pointer"
+                        >
+                          <div className="h-6 w-6 rounded-full bg-zinc-800 flex items-center justify-center text-[9px] font-bold text-zinc-300 uppercase flex-shrink-0">
+                            {user.full_name?.[0] || user.email?.[0] || 'U'}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-white text-xs font-semibold truncate leading-tight">
+                              {user.full_name || user.email.split('@')[0]}
+                            </p>
+                            <p className="text-zinc-500 text-[9px] truncate leading-none mt-0.5">
+                              {user.email}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {showDropdown && searching && (
+                    <div className="absolute left-0 right-0 mt-1 bg-zinc-950 border border-zinc-800 rounded-xl shadow-xl z-55 px-3 py-2 text-zinc-500 text-[10px] italic">
+                      Searching users...
+                    </div>
+                  )}
+
+                  {showDropdown && !searching && searchResults.length === 0 && inviteEmail.trim().length >= 2 && (
+                    <div className="absolute left-0 right-0 mt-1 bg-zinc-950 border border-zinc-800 rounded-xl shadow-xl z-55 px-3 py-2 text-zinc-500 text-[10px] italic">
+                      No matching registered users found.
+                    </div>
+                  )}
+                </div>
               )}
 
               {inviteError && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{inviteError}</p>}
