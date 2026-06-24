@@ -51,7 +51,7 @@ export default function Sidebar({ profile, className = '' }: { profile: any; cla
     }`
 
   return (
-    <aside className={`fixed left-0 top-0 h-screen w-56 bg-zinc-950 border-r border-zinc-800/60 flex flex-col p-4 overflow-y-auto ${className}`}>
+    <aside className={`fixed left-0 top-0 h-screen w-56 bg-zinc-950 border-r border-zinc-800/60 flex flex-col p-4 overflow-y-auto custom-scrollbar ${className}`}>
 
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-2 mb-6 mt-2 flex-shrink-0">

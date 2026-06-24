@@ -56,6 +56,25 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
   // Picker modal
   const [showPicker, setShowPicker] = useState(false)
   const [pickerSearch, setPickerSearch] = useState('')
+  const [collections, setCollections] = useState<any[]>([])
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all')
+
+  // Fetch collections when picker is shown
+  useEffect(() => {
+    if (!showPicker) return
+    const fetchCollections = async () => {
+      try {
+        const res = await fetch('/api/collections')
+        if (res.ok) {
+          const data = await res.json()
+          setCollections(data.collections || [])
+        }
+      } catch (err) {
+        console.error('Failed to fetch collections:', err)
+      }
+    }
+    fetchCollections()
+  }, [showPicker])
 
   // Collaboration / Member states
   const [members, setMembers] = useState<any[]>([])
@@ -351,7 +370,6 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
         persistCanvasData(updated)
         return updated
       })
-      setShowPicker(false)
     }
   }
 
@@ -648,11 +666,31 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
   const filteredBookmarks = allBookmarks.filter(b => {
     const alreadyAdded = items.some(i => i.bookmark_id === b.id)
     if (alreadyAdded) return false
+
+    // Filter by collection
+    if (selectedCollectionId !== 'all') {
+      if (b.collection_id !== selectedCollectionId) return false
+    }
+
     if (!pickerSearch) return true
+
+    const searchLower = pickerSearch.trim().toLowerCase()
+
+    // Hashtag search specifically targets tags
+    if (searchLower.startsWith('#')) {
+      const tagQuery = searchLower.substring(1).trim()
+      if (!tagQuery) {
+        return b.tags && b.tags.length > 0
+      }
+      return b.tags?.some(t => t.toLowerCase().includes(tagQuery))
+    }
+
+    // Default search matches title, video_id, notes, and tags
     return (
-      b.video_id.includes(pickerSearch) ||
-      b.notes?.toLowerCase().includes(pickerSearch.toLowerCase()) ||
-      b.tags?.some(t => t.toLowerCase().includes(pickerSearch.toLowerCase()))
+      b.title?.toLowerCase().includes(searchLower) ||
+      b.video_id.toLowerCase().includes(searchLower) ||
+      b.notes?.toLowerCase().includes(searchLower) ||
+      b.tags?.some(t => t.toLowerCase().includes(searchLower))
     )
   })
 
@@ -747,12 +785,12 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
           <div className="flex items-center gap-3">
             {/* Collaborators widget */}
             <div className="flex items-center gap-1.5 bg-zinc-900/50 border border-zinc-800 rounded-lg px-2.5 py-1">
-              <div className="flex -space-x-1.5 overflow-hidden">
+              <div className="flex -space-x-1.5 mr-0.5">
                 {owner && (
                   <div
                     key={owner.id}
                     title={`Owner: ${owner.email}`}
-                    className="inline-block h-5 w-5 rounded-full ring-2 ring-zinc-950 bg-violet-600 flex items-center justify-center text-[9px] font-bold text-white uppercase flex-shrink-0"
+                    className="h-5 w-5 rounded-full ring-2 ring-zinc-950 bg-violet-600 flex items-center justify-center text-[9px] font-bold text-white uppercase flex-shrink-0"
                   >
                     {owner.full_name?.[0] || owner.email?.[0] || 'O'}
                   </div>
@@ -761,13 +799,13 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
                   <div
                     key={m.profiles.id}
                     title={`${m.profiles.email} (${m.role})`}
-                    className="inline-block h-5 w-5 rounded-full ring-2 ring-zinc-950 bg-zinc-700 flex items-center justify-center text-[9px] font-bold text-zinc-300 uppercase flex-shrink-0"
+                    className="h-5 w-5 rounded-full ring-2 ring-zinc-950 bg-zinc-700 flex items-center justify-center text-[9px] font-bold text-zinc-300 uppercase flex-shrink-0"
                   >
                     {m.profiles.full_name?.[0] || m.profiles.email?.[0] || 'U'}
                   </div>
                 ))}
                 {members.length > 2 && (
-                  <div className="inline-block h-5 w-5 rounded-full ring-2 ring-zinc-950 bg-zinc-800 flex items-center justify-center text-[8px] font-semibold text-zinc-400 flex-shrink-0">
+                  <div className="h-5 w-5 rounded-full ring-2 ring-zinc-950 bg-zinc-800 flex items-center justify-center text-[8px] font-semibold text-zinc-400 flex-shrink-0">
                     +{members.length - 2}
                   </div>
                 )}
@@ -1338,14 +1376,24 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
               </button>
             </div>
 
-            <div className="p-3 border-b border-zinc-850 bg-zinc-900/10">
+            <div className="p-3 border-b border-zinc-850 bg-zinc-900/10 flex gap-2">
               <input
                 autoFocus
                 value={pickerSearch}
                 onChange={e => setPickerSearch(e.target.value)}
-                placeholder="Search your bookmarks…"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-white text-xs outline-none focus:border-violet-500 transition-all"
+                placeholder="Search bookmarks (use # for tags)…"
+                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-white text-xs outline-none focus:border-violet-500 transition-all"
               />
+              <select
+                value={selectedCollectionId}
+                onChange={e => setSelectedCollectionId(e.target.value)}
+                className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs rounded-xl px-3 outline-none focus:border-violet-500 transition-all cursor-pointer max-w-[150px]"
+              >
+                <option value="all">All Collections</option>
+                {collections.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="overflow-y-auto flex-1 p-3 flex flex-col gap-2">
