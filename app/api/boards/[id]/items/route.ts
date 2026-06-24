@@ -12,8 +12,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { bookmark_id, card_note } = await req.json()
     if (!bookmark_id) return NextResponse.json({ error: 'bookmark_id required' }, { status: 400 })
 
-    // Verify board access (owner or editor collaborator)
-    const { data: board } = await supabase.from('boards').select('user_id').eq('id', board_id).single()
+    // Run board ownership check + max-position query in parallel to cut serial round-trips
+    const [{ data: board }, { data: existing }] = await Promise.all([
+      supabase.from('boards').select('user_id').eq('id', board_id).single(),
+      supabase
+        .from('board_items')
+        .select('position')
+        .eq('board_id', board_id)
+        .order('position', { ascending: false })
+        .limit(1)
+    ])
+
     if (!board) return NextResponse.json({ error: 'Board not found' }, { status: 404 })
 
     const isOwner = board.user_id === user.id
@@ -34,14 +43,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!isOwner && !isEditor) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-
-    // Get current max position
-    const { data: existing } = await supabase
-      .from('board_items')
-      .select('position')
-      .eq('board_id', board_id)
-      .order('position', { ascending: false })
-      .limit(1)
 
     const position = (existing?.[0]?.position ?? -1) + 1
 
