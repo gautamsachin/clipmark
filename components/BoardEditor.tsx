@@ -352,25 +352,64 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
     }
   }
 
-  // ── Add Bookmark Clip ─────────────────────────────────────────────────────
-  const handleAddBookmark = async (bookmarkId: string) => {
-    const res = await fetch(`/api/boards/${board.id}/items`, {
+  // ── Add Bookmark Clip (optimistic) ───────────────────────────────────────
+  const handleAddBookmark = (bookmarkId: string) => {
+    // Find the bookmark data we already have client-side
+    const bm = allBookmarks.find(b => b.id === bookmarkId)
+    if (!bm) return
+
+    // Generate a temporary ID so the card appears instantly
+    const tempId = 'temp_' + nanoid()
+    const optimisticItem = {
+      id: tempId,
+      board_id: board.id,
+      bookmark_id: bookmarkId,
+      user_id: userId,
+      position: items.length,
+      card_note: null,
+      created_at: new Date().toISOString(),
+      bookmark: bm,
+    }
+
+    // 1. Instantly show the card on the canvas
+    setItems(prev => [...prev, optimisticItem])
+    setCanvas((prev: any) => {
+      const updatedItems = { ...prev.items, [tempId]: { x: 120, y: 120 } }
+      return { ...prev, items: updatedItems }
+    })
+    setShowPicker(false)
+
+    // 2. Persist to DB in background and swap temp ID → real ID
+    fetch(`/api/boards/${board.id}/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bookmark_id: bookmarkId }),
     })
-    const data = await res.json()
-    if (data.item) {
-      setItems(prev => [...prev, data.item])
-      
-      // Assign default positioning coordinates
-      setCanvas((prev: any) => {
-        const updatedItems = { ...prev.items, [data.item.id]: { x: 120, y: 120 } }
-        const updated = { ...prev, items: updatedItems }
-        persistCanvasData(updated)
-        return updated
+      .then(res => res.json())
+      .then(data => {
+        if (!data.item) return
+        const realId = data.item.id
+        // Swap temp item with confirmed DB item
+        setItems(prev => prev.map(i => i.id === tempId ? { ...data.item } : i))
+        setCanvas((prev: any) => {
+          const pos = prev.items[tempId] || { x: 120, y: 120 }
+          const updatedItems = { ...prev.items, [realId]: pos }
+          delete updatedItems[tempId]
+          const updated = { ...prev, items: updatedItems }
+          persistCanvasData(updated)
+          return updated
+        })
       })
-    }
+      .catch(err => {
+        console.error('Failed to add clip, rolling back:', err)
+        // Roll back optimistic item on error
+        setItems(prev => prev.filter(i => i.id !== tempId))
+        setCanvas((prev: any) => {
+          const updatedItems = { ...prev.items }
+          delete updatedItems[tempId]
+          return { ...prev, items: updatedItems }
+        })
+      })
   }
 
   // ── Remove Bookmark Clip ──────────────────────────────────────────────────
