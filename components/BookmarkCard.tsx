@@ -179,7 +179,8 @@ export default function BookmarkCard({ bookmark, onDelete, onUpdate }: Props) {
             </button>
             {confirmDelete ? (
               <>
-                <button onClick={() => onDelete(bookmark.id)} className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded-lg transition">Sure?</button>
+                <span className="text-xs text-zinc-400 px-1">Sure?</span>
+                <button onClick={() => onDelete(bookmark.id)} className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded-lg transition font-medium">Yes</button>
                 <button onClick={() => setConfirmDelete(false)} className="text-xs text-zinc-500 px-1">No</button>
               </>
             ) : (
