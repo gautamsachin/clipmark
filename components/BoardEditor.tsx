@@ -15,7 +15,8 @@ interface Props {
   board: Board
   initialItems: any[]
   allBookmarks: Bookmark[]
-  userId: string
+  userId?: string
+  readOnly?: boolean
 }
 
 const COLORS = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#db2777', '#0891b2']
@@ -32,7 +33,7 @@ const formatTime = (s: number) => {
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s` 
 }
 
-export default function BoardEditor({ board, initialItems, allBookmarks, userId }: Props) {
+export default function BoardEditor({ board, initialItems, allBookmarks, userId = '', readOnly = false }: Props) {
   const router = useRouter()
   
   // Data states
@@ -281,6 +282,7 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
 
   // ── Drag & Drop mouse handlers ────────────────────────────────────────────
   const startDrag = (id: string, type: 'item' | 'note', e: React.MouseEvent) => {
+    if (!canModify) return
     if (e.button !== 0) return
     const target = e.target as HTMLElement
     if (target.closest('button') || target.closest('input') || target.closest('textarea') || target.closest('a')) return
@@ -376,6 +378,7 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
 
   // ── Create Sticky Note ────────────────────────────────────────────────────
   const addStickyNote = () => {
+    if (!canModify) return
     const noteId = 'note_' + nanoid()
     const newNote = {
       id: noteId,
@@ -394,6 +397,7 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
 
   // ── Update Sticky Note details ───────────────────────────────────────────
   const updateStickyNoteText = (noteId: string, text: string) => {
+    if (!canModify) return
     setCanvas((prev: any) => {
       const nextNotes = prev.notes.map((n: any) => n.id === noteId ? { ...n, text } : n)
       const updated = { ...prev, notes: nextNotes }
@@ -403,6 +407,7 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
   }
 
   const updateStickyNoteColor = (noteId: string, colorHex: string) => {
+    if (!canModify) return
     setCanvas((prev: any) => {
       const nextNotes = prev.notes.map((n: any) => n.id === noteId ? { ...n, color: colorHex } : n)
       const updated = { ...prev, notes: nextNotes }
@@ -412,6 +417,7 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
   }
 
   const updateStickyNoteSize = (noteId: string, size: 's' | 'm' | 'l') => {
+    if (!canModify) return
     setCanvas((prev: any) => {
       const nextNotes = prev.notes.map((n: any) => n.id === noteId ? { ...n, size } : n)
       const updated = { ...prev, notes: nextNotes }
@@ -421,6 +427,7 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
   }
 
   const duplicateStickyNote = (originalNote: any) => {
+    if (!canModify) return
     const noteId = 'note_' + nanoid()
     let w = 220
     if (originalNote.size === 's') w = 160
@@ -445,6 +452,7 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
 
   const deleteStickyNote = (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!canModify) return
     if (!confirm('Delete this text note?')) return
     setCanvas((prev: any) => {
       const nextNotes = prev.notes.filter((n: any) => n.id !== noteId)
@@ -648,9 +656,9 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
     )
   })
 
-  const isBoardOwner = boardData.user_id === userId
-  const isEditorCollaborator = members.some(m => m.profiles.id === userId && m.role === 'editor')
-  const canModify = isBoardOwner || isEditorCollaborator
+  const isBoardOwner = !!(userId && boardData.user_id === userId)
+  const isEditorCollaborator = !!(userId && members.some(m => m.profiles.id === userId && m.role === 'editor'))
+  const canModify = !readOnly && (isBoardOwner || isEditorCollaborator)
 
   // Find active selected card details
   const activeDetailItem = items.find(i => i.id === selectedItemId)
@@ -764,28 +772,32 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className="text-[10px] text-zinc-400 hover:text-white transition font-semibold ml-1 pl-1.5 border-l border-zinc-800 flex items-center gap-0.5 cursor-pointer"
-              >
-                <UserPlus className="w-3 h-3" /> Invite
-              </button>
+              {canModify && (
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="text-[10px] text-zinc-400 hover:text-white transition font-semibold ml-1 pl-1.5 border-l border-zinc-800 flex items-center gap-0.5 cursor-pointer"
+                >
+                  <UserPlus className="w-3 h-3" /> Invite
+                </button>
+              )}
             </div>
 
             {/* Sharing */}
-            <button
-              onClick={togglePublic}
-              disabled={!isBoardOwner}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition border cursor-pointer ${
-                boardData.is_public
-                  ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-850'
-              }`}
-            >
-              {boardData.is_public ? <><Globe className="w-3.5 h-3.5" /> Public</> : <><Lock className="w-3.5 h-3.5" /> Private</>}
-            </button>
+            {!readOnly && (
+              <button
+                onClick={togglePublic}
+                disabled={!isBoardOwner}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition border cursor-pointer ${
+                  boardData.is_public
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-850'
+                }`}
+              >
+                {boardData.is_public ? <><Globe className="w-3.5 h-3.5" /> Public</> : <><Lock className="w-3.5 h-3.5" /> Private</>}
+              </button>
+            )}
 
-            {boardData.is_public && (
+            {(readOnly || boardData.is_public) && (
               <button 
                 onClick={copyShareLink} 
                 className="flex items-center gap-1.5 px-2.5 py-1.5 bg-zinc-900 border border-zinc-850 rounded-lg text-xs font-semibold text-zinc-400 hover:text-white transition active:scale-95 cursor-pointer"
@@ -1115,69 +1127,72 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
                   }}
                 >
                   {/* Note Header / Color bar */}
-                  <div
-                    className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/10 select-none flex-shrink-0"
-                  >
-                    {/* Sticky Note Colors & Size pickers */}
-                    <div className="flex gap-1 items-center min-w-0">
-                      {STICKY_COLORS.map(sc => (
-                        <button
-                          key={sc.hex}
-                          type="button"
-                          onClick={() => updateStickyNoteColor(note.id, sc.hex)}
-                          className={`w-2 h-2 rounded-full transition-transform hover:scale-125 flex-shrink-0 cursor-pointer ${
-                            note.color === sc.hex ? 'ring-1 ring-white scale-110' : ''
-                          }`}
-                          style={{ background: sc.hex }}
-                        />
-                      ))}
-                      
-                      <div className="flex gap-0.5 items-center ml-1.5 border-l border-white/10 pl-1.5 flex-shrink-0">
-                        {['S', 'M', 'L'].map(sz => (
+                  {/* Note Header / Color bar */}
+                  {canModify && (
+                    <div
+                      className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/10 select-none flex-shrink-0"
+                    >
+                      {/* Sticky Note Colors & Size pickers */}
+                      <div className="flex gap-1 items-center min-w-0">
+                        {STICKY_COLORS.map(sc => (
                           <button
-                            key={sz}
+                            key={sc.hex}
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              updateStickyNoteSize(note.id, sz.toLowerCase() as 's' | 'm' | 'l')
-                            }}
-                            className={`w-3.5 h-3.5 text-[8px] font-bold rounded flex items-center justify-center transition-all cursor-pointer ${
-                              (note.size || 'm') === sz.toLowerCase()
-                                ? 'bg-white/20 text-white font-extrabold border border-white/25'
-                                : 'text-white/30 hover:text-white hover:bg-white/5'
+                            onClick={() => updateStickyNoteColor(note.id, sc.hex)}
+                            className={`w-2 h-2 rounded-full transition-transform hover:scale-125 flex-shrink-0 cursor-pointer ${
+                              note.color === sc.hex ? 'ring-1 ring-white scale-110' : ''
                             }`}
-                          >
-                            {sz}
-                          </button>
+                            style={{ background: sc.hex }}
+                          />
                         ))}
+                        
+                        <div className="flex gap-0.5 items-center ml-1.5 border-l border-white/10 pl-1.5 flex-shrink-0">
+                          {['S', 'M', 'L'].map(sz => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                updateStickyNoteSize(note.id, sz.toLowerCase() as 's' | 'm' | 'l')
+                              }}
+                              className={`w-3.5 h-3.5 text-[8px] font-bold rounded flex items-center justify-center transition-all cursor-pointer ${
+                                (note.size || 'm') === sz.toLowerCase()
+                                  ? 'bg-white/20 text-white font-extrabold border border-white/25'
+                                  : 'text-white/30 hover:text-white hover:bg-white/5'
+                              }`}
+                            >
+                              {sz}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            duplicateStickyNote(note)
+                          }}
+                          className="p-0.5 hover:bg-white/10 rounded transition-all text-white/40 hover:text-white cursor-pointer"
+                          title="Duplicate Note"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+
+                        {canModify && (
+                          <button
+                            type="button"
+                            onClick={(e) => deleteStickyNote(note.id, e)}
+                            className="p-0.5 hover:bg-white/10 rounded transition-all text-white/40 hover:text-red-400 cursor-pointer flex-shrink-0"
+                            title="Delete Note"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          duplicateStickyNote(note)
-                        }}
-                        className="p-0.5 hover:bg-white/10 rounded transition-all text-white/40 hover:text-white cursor-pointer"
-                        title="Duplicate Note"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-
-                      {canModify && (
-                        <button
-                          type="button"
-                          onClick={(e) => deleteStickyNote(note.id, e)}
-                          className="p-0.5 hover:bg-white/10 rounded transition-all text-white/40 hover:text-red-400 cursor-pointer flex-shrink-0"
-                          title="Delete Note"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Sticky Notes text area */}
                   <textarea
@@ -1289,23 +1304,25 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
           </div>
 
           {/* Comment input form */}
-          <form onSubmit={postComment} className="p-3 border-t border-zinc-850 bg-zinc-950 flex gap-2 flex-shrink-0">
-            <input
-              type="text"
-              required
-              placeholder="Post a comment…"
-              value={newComment}
-              onChange={e => setNewComment(e.target.value)}
-              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-violet-500/50 transition-all"
-            />
-            <button
-              type="submit"
-              disabled={postingComment || !newComment.trim()}
-              className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all active:scale-95 flex-shrink-0 cursor-pointer"
-            >
-              {postingComment ? '…' : 'Post'}
-            </button>
-          </form>
+          {!readOnly && userId && (
+            <form onSubmit={postComment} className="p-3 border-t border-zinc-850 bg-zinc-950 flex gap-2 flex-shrink-0">
+              <input
+                type="text"
+                required
+                placeholder="Post a comment…"
+                value={newComment}
+                onChange={e => setNewComment(e.target.value)}
+                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-violet-500/50 transition-all"
+              />
+              <button
+                type="submit"
+                disabled={postingComment || !newComment.trim()}
+                className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all active:scale-95 flex-shrink-0 cursor-pointer"
+              >
+                {postingComment ? '…' : 'Post'}
+              </button>
+            </form>
+          )}
         </div>
       )}
 
