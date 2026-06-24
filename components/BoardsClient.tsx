@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { Board } from '@/lib/types'
 import Link from 'next/link'
-import { Plus, Layout, Lock, Globe, Trash2, MoreHorizontal } from 'lucide-react'
+import { Plus, Layout, Lock, Globe, Trash2, LogOut } from 'lucide-react'
 
-export default function BoardsClient({ initialBoards }: { initialBoards: any[] }) {
+export default function BoardsClient({ initialBoards, userId }: { initialBoards: any[], userId: string }) {
   const [boards, setBoards] = useState<any[]>(initialBoards)
   const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
@@ -23,7 +23,7 @@ export default function BoardsClient({ initialBoards }: { initialBoards: any[] }
     })
     const data = await res.json()
     if (data.board) {
-      setBoards(prev => [{ ...data.board, board_items: [{ count: 0 }] }, ...prev])
+      setBoards(prev => [{ ...data.board, board_items: [{ count: 0 }], is_owner: true }, ...prev])
       setTitle(''); setDescription(''); setCreating(false)
     }
     setLoading(false)
@@ -33,6 +33,14 @@ export default function BoardsClient({ initialBoards }: { initialBoards: any[] }
     if (!confirm('Delete this board? This won\'t delete your bookmarks.')) return
     await fetch(`/api/boards/${id}`, { method: 'DELETE' })
     setBoards(prev => prev.filter(b => b.id !== id))
+  }
+
+  const leaveBoard = async (id: string) => {
+    if (!confirm('Leave this shared board? You will lose access to it.')) return
+    const res = await fetch(`/api/boards/${id}/members/${userId}`, { method: 'DELETE' })
+    if (res.ok) {
+      setBoards(prev => prev.filter(b => b.id !== id))
+    }
   }
 
   return (
@@ -110,18 +118,38 @@ export default function BoardsClient({ initialBoards }: { initialBoards: any[] }
                       <p className="text-zinc-500 text-xs mt-0.5 line-clamp-1">{board.description}</p>
                     )}
                   </div>
-                  <button
-                    onClick={() => deleteBoard(board.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition flex-shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {board.is_owner ? (
+                    <button
+                      onClick={() => deleteBoard(board.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition flex-shrink-0 cursor-pointer"
+                      title="Delete Board"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => leaveBoard(board.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition flex-shrink-0 cursor-pointer"
+                      title="Leave Board"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between mt-3">
-                  <span className="text-xs text-zinc-600">
-                    {board.board_items?.[0]?.count || 0} clips
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-600">
+                      {board.board_items?.[0]?.count || 0} clips
+                    </span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase leading-none ${
+                      board.is_owner
+                        ? 'bg-violet-500/10 border border-violet-500/20 text-violet-400'
+                        : 'bg-zinc-800 border border-zinc-700 text-zinc-400'
+                    }`}>
+                      {board.is_owner ? 'Owner' : 'Collaborator'}
+                    </span>
+                  </div>
                   <span className="flex items-center gap-1 text-xs text-zinc-600">
                     {board.is_public
                       ? <><Globe className="w-3 h-3" /> Public</>

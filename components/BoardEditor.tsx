@@ -537,8 +537,8 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
         setNewComment('')
         setItems(prev => prev.map(i => {
           if (i.id === selectedItemId) {
-            const currentCount = i.comments_count ?? i.comments?.[0]?.count ?? 0
-            return { ...i, comments_count: currentCount + 1 }
+            const currentComments = Array.isArray(i.comments) ? i.comments : []
+            return { ...i, comments: [...currentComments, data.comment] }
           }
           return i
         }))
@@ -561,8 +561,8 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
         setComments(prev => prev.filter(c => c.id !== commentId))
         setItems(prev => prev.map(i => {
           if (i.id === selectedItemId) {
-            const currentCount = i.comments_count ?? i.comments?.[0]?.count ?? 0
-            return { ...i, comments_count: Math.max(0, currentCount - 1) }
+            const currentComments = Array.isArray(i.comments) ? i.comments : []
+            return { ...i, comments: currentComments.filter((c: any) => c.id !== commentId) }
           }
           return i
         }))
@@ -972,9 +972,56 @@ export default function BoardEditor({ board, initialItems, allBookmarks, userId 
                       />
                     </div>
 
+                    {/* Original Bookmark Notes (Comment from Extension) */}
+                    {bm.notes && (
+                      <div className="text-[10px] text-zinc-400 bg-zinc-950/30 border border-zinc-850/60 rounded-lg p-2 mt-0.5 select-text">
+                        <span className="text-[8px] font-bold text-violet-450 uppercase tracking-wider block mb-0.5">Bookmark Note</span>
+                        {bm.notes}
+                      </div>
+                    )}
+
+                    {/* Bookmark Tags (from Extension) */}
+                    {bm.tags && bm.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {bm.tags.map((t: string) => (
+                          <span key={t} className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-full">
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Collaborator Comments list */}
+                    {Array.isArray(item.comments) && item.comments.length > 0 && (
+                      <div className="mt-1 pt-2 border-t border-zinc-850 flex flex-col gap-1.5 max-h-36 overflow-y-auto custom-scrollbar select-text">
+                        <label className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider">Canvas Discussion</label>
+                        {item.comments.map((c: any) => {
+                          const initials = c.profiles?.full_name?.[0] || c.profiles?.email?.[0] || 'U'
+                          return (
+                            <div key={c.id} className="text-[10px] bg-zinc-950/40 border border-zinc-850 p-1.5 rounded-lg flex items-start gap-1.5">
+                              <div className="w-4 h-4 rounded-full bg-zinc-850 border border-zinc-700 text-zinc-300 text-[8px] font-bold flex items-center justify-center uppercase flex-shrink-0">
+                                {initials}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-bold text-[8px] text-zinc-300 truncate">
+                                    {c.profiles?.full_name || c.profiles?.email?.split('@')[0]}
+                                  </span>
+                                  <span className="text-[7px] text-zinc-650">
+                                    {new Date(c.created_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <p className="text-zinc-400 leading-normal break-words mt-0.5">{c.text}</p>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between mt-1 pt-2 border-t border-zinc-850">
                       <span className="text-[9px] text-zinc-500 uppercase font-semibold">
-                        {(item.comments_count ?? item.comments?.[0]?.count ?? 0)} Comment{(item.comments_count ?? item.comments?.[0]?.count ?? 0) !== 1 ? 's' : ''}
+                        {(Array.isArray(item.comments) ? item.comments.length : 0)} Comment{(Array.isArray(item.comments) ? item.comments.length : 0) !== 1 ? 's' : ''}
                       </span>
                       <a 
                         href={bm.url} 

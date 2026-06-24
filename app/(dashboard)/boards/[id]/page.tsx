@@ -22,7 +22,17 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
 
   const { data: items } = await supabase
     .from('board_items')
-    .select('*, bookmark:bookmarks(*), comments:board_item_comments(count)')
+    .select(`
+      *,
+      bookmark:bookmarks(*),
+      comments:board_item_comments(
+        id,
+        text,
+        created_at,
+        user_id,
+        profiles(id, email, full_name, avatar_url)
+      )
+    `)
     .eq('board_id', id)
     .order('position', { ascending: true })
 
