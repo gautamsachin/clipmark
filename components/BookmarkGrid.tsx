@@ -16,6 +16,7 @@ interface Props {
 export default function BookmarkGrid({ initialBookmarks, plan, initialSite = '' }: Props) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks)
   const [loading, setLoading] = useState(false)
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'timestamp'>('newest')
 
   // Sync state with props when initialBookmarks changes from server navigation
   useEffect(() => {
@@ -59,9 +60,23 @@ export default function BookmarkGrid({ initialBookmarks, plan, initialSite = '' 
   // Collect all unique tags for filter chips
   const allTags = Array.from(new Set(bookmarks.flatMap(b => b.tags || []))).slice(0, 20)
 
+  // Sort bookmarks dynamically
+  const sortedBookmarks = [...bookmarks].sort((a, b) => {
+    if (sortBy === 'newest') {
+      return new Date(b.saved_at).getTime() - new Date(a.saved_at).getTime()
+    }
+    if (sortBy === 'oldest') {
+      return new Date(a.saved_at).getTime() - new Date(b.saved_at).getTime()
+    }
+    if (sortBy === 'timestamp') {
+      return a.timestamp - b.timestamp
+    }
+    return 0
+  })
+
   return (
     <div>
-      <SearchBar onSearch={handleSearch} allTags={allTags} initialSite={initialSite} />
+      <SearchBar onSearch={handleSearch} allTags={allTags} initialSite={initialSite} sortBy={sortBy} onSortChange={setSortBy} />
 
       {/* Free plan limit warning */}
       {plan === 'free' && bookmarks.length >= 8 && (
@@ -96,7 +111,7 @@ export default function BookmarkGrid({ initialBookmarks, plan, initialSite = '' 
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {bookmarks.map(bookmark => (
+          {sortedBookmarks.map(bookmark => (
             <BookmarkCard
               key={bookmark.id}
               bookmark={bookmark}

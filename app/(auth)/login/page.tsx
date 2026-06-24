@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Bookmark, Mail, Globe } from 'lucide-react'
 
@@ -9,6 +9,11 @@ export default function LoginPage() {
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
+
+  useEffect(() => {
+    localStorage.removeItem('clipmark_sync_token')
+    localStorage.removeItem('clipmark_user_profile')
+  }, [])
 
   const loginWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
