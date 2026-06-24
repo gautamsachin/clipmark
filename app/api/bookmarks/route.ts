@@ -127,3 +127,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
+
+// ── DELETE /api/bookmarks — delete ALL bookmarks for the authenticated user ───
+export async function DELETE(req: NextRequest) {
+  try {
+    const { client, userId } = await getClientForAuth(req)
+    if (!client || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { error } = await client
+      .from('bookmarks')
+      .delete()
+      .eq('user_id', userId)
+
+    if (error) throw error
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
